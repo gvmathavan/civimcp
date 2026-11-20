@@ -1,0 +1,32 @@
+{
+    "name": "gvmathavan/civimcp",
+    "description": "CiviMCP: MCP for CiviCRM. Safe, permission-aware access to a CiviCRM site for Claude and other MCP clients.",
+    "type": "civicrm-ext",
+    "license": "MIT",
+    "authors": [
+        {"name": "Mathavan Veeramuthu"}
+    ],
+    "require": {
+        "php": ">=8.1",
+        "mcp/sdk": "~0.9.0",
+        "psr/log": "^1.1",
+        "psr/container": "^1.1",
+        "psr/event-dispatcher": "^1.0",
+        "psr/http-message": "^1.1",
+        "symfony/deprecation-contracts": "^2.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Civi\\Mcp\\": "Civi/Mcp/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.1.0"
+        },
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}

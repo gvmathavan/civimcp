@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<extension key="civimcp" type="module">
+  <file>civimcp</file>
+  <name>CiviMCP: MCP for CiviCRM</name>
+  <description>Lets Claude and other Model Context Protocol (MCP) clients work with CiviCRM safely: runs as a real CiviCRM user, read-only first, every result labelled with site and environment, secrets redacted, every call logged. CiviCRM is a registered trademark of CIVICRM LLC; this is an independent project.</description>
+  <license>MIT</license>
+  <maintainer>
+    <author>Mathavan Veeramuthu</author>
+    <email>mathavan@douglassdigital.com</email>
+  </maintainer>
+  <urls>
+    <url desc="Main Extension Page">https://github.com/gvmathavan/civimcp</url>
+    <url desc="Documentation">https://github.com/gvmathavan/civimcp#readme</url>
+    <url desc="Support">https://github.com/gvmathavan/civimcp/issues</url>
+    <url desc="Licensing">https://opensource.org/license/mit</url>
+  </urls>
+  <releaseDate>2026-11-20</releaseDate>
+  <version>0.1.0-dev</version>
+  <develStage>alpha</develStage>
+  <compatibility>
+    <ver>6.3</ver>
+  </compatibility>
+  <comments>v0.1: read-only tools over stdio. Run composer install before use.</comments>
+  <classloader>
+    <psr0 prefix="CRM_" path="."/>
+    <psr4 prefix="Civi\" path="Civi"/>
+  </classloader>
+  <civix>
+    <namespace>CRM/Civimcp</namespace>
+    <format>23.02.1</format>
+    <angularModule>crmCivimcp</angularModule>
+  </civix>
+  <mixins>
+    <mixin>mgd-php@1.0.0</mixin>
+    <mixin>setting-php@1.0.0</mixin>
+    <mixin>smarty-v2@1.0.1</mixin>
+  </mixins>
+</extension>
