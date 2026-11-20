@@ -32,6 +32,7 @@ Use describe_entity first to get exact field names. Parameters follow APIv4:
 - select: fields to return, e.g. ["id", "display_name", "email_primary.email"]. Joins with dots work, e.g. "contact_id.display_name". Option fields: "status_id:label".
 - where: list of conditions, e.g. [["status_id:name", "=", "Current"], ["end_date", "<", "2026-12-01"]]. Operators: =, !=, <, <=, >, >=, LIKE, NOT LIKE, IN, NOT IN, BETWEEN, IS NULL, IS NOT NULL, CONTAINS. Group with ["OR", [[...], [...]]].
 - orderBy: e.g. {"end_date": "ASC"}.
+- Totals and counts: use groupBy with aggregate functions in select instead of fetching many rows, e.g. select ["status_id:label", "COUNT(id) AS total"], groupBy ["status_id"]; or select ["contact_id.display_name", "SUM(total_amount) AS given"], groupBy ["contact_id"], orderBy {"given": "DESC"}. Functions: COUNT, SUM, AVG, MIN, MAX. Filter groups with having, e.g. [["given", ">", 100]].
 - limit (default 25, max 100) and offset for paging. The result says has_more and the total matched.
 TXT;
   }
@@ -53,6 +54,16 @@ TXT;
           'type' => 'array',
           'items' => ['type' => 'array'],
           'description' => 'Conditions, e.g. [["contact_type", "=", "Individual"]].',
+        ],
+        'groupBy' => [
+          'type' => 'array',
+          'items' => ['type' => 'string'],
+          'description' => 'Fields to group by, for totals with COUNT/SUM/AVG/MIN/MAX in select, e.g. ["status_id"].',
+        ],
+        'having' => [
+          'type' => 'array',
+          'items' => ['type' => 'array'],
+          'description' => 'Conditions on grouped results, e.g. [["total", ">", 5]].',
         ],
         'orderBy' => [
           'type' => 'object',
@@ -82,13 +93,15 @@ TXT;
    * @param string[] $select
    * @param array<int, mixed> $where
    * @param array<string, string> $orderBy
+   * @param string[] $groupBy
+   * @param array<int, mixed> $having
    *
    * @return array<string, mixed>
    */
-  public function __invoke(string $entity, array $select = [], array $where = [], array $orderBy = [], int $limit = self::DEFAULT_LIMIT, int $offset = 0): array {
-    $args = compact('entity', 'select', 'where', 'orderBy', 'limit', 'offset');
+  public function __invoke(string $entity, array $select = [], array $where = [], array $orderBy = [], int $limit = self::DEFAULT_LIMIT, int $offset = 0, array $groupBy = [], array $having = []): array {
+    $args = compact('entity', 'select', 'where', 'groupBy', 'having', 'orderBy', 'limit', 'offset');
 
-    return $this->execute($args, function () use ($entity, $select, $where, $orderBy, $limit, $offset): array {
+    return $this->execute($args, function () use ($entity, $select, $where, $groupBy, $having, $orderBy, $limit, $offset): array {
       EntityPolicy::assertReadable($entity);
       $limit = max(1, min(self::MAX_LIMIT, $limit));
       $offset = max(0, $offset);
@@ -99,8 +112,14 @@ TXT;
         }
       }
 
+      if ($groupBy && !$select) {
+        throw new ToolCallException('When using groupBy, also give select with the grouped fields and aggregates, e.g. ["status_id:label", "COUNT(id) AS total"].');
+      }
+
       $params = [
         'where' => $where,
+        'groupBy' => $groupBy,
+        'having' => $having,
         'orderBy' => $orderBy,
         'limit' => $limit,
         'offset' => $offset,
