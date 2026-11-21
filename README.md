@@ -17,7 +17,7 @@ Status: **v0.1 in development** (WordPress, stdio transport).
 | `system_check` | CiviCRM System Status messages at or above a chosen severity |
 | `list_entities` | APIv4 entities available to the current user, filterable by keyword |
 | `describe_entity` | Fields of an entity, incl. custom fields, labels, links and option values |
-| `get` | Read records of any allowed entity with APIv4 `get` (select, where, orderBy, limit ≤ 100, offset) |
+| `get` | Read records of any allowed entity with APIv4 `get` (select, where, orderBy, limit ≤ 100, offset), plus totals with groupBy/having and COUNT/SUM/AVG/MIN/MAX |
 | `search_contacts` | Find contacts by part of name, email, phone, or ID |
 
 Entities that can hold credentials (Setting, PaymentProcessor, OAuth tokens, MailSettings and others) are never readable through these tools.
@@ -77,6 +77,28 @@ In `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```
 
 Use the full path to the same PHP your site runs on, so the database connection works.
+
+## Tests
+
+**Unit tests** check CiviMCP's own safety logic (redaction, blocked entities, read-only `get`, row caps, permission errors, tool definitions) against small stand-ins for CiviCRM, so they run in seconds with no database:
+
+```bash
+composer require --dev phpunit/phpunit:^10.5   # once
+composer test
+```
+
+**Smoke test** runs the real server against a real *test* site, as an admin and as a limited user (one with `access CiviCRM` but not `access CiviContribute` or `administer CiviCRM`):
+
+```bash
+composer smoke -- --admin=admin --limited=mcp-tester --url=http://your-site.loc
+```
+
+**Test data**: `tests/seed/seed-test-data.php` creates ~200 fake contacts with memberships, donations, events and activities on a test site (it refuses to run on a site labelled Production):
+
+```bash
+cv scr <path-to>/civimcp/tests/seed/seed-test-data.php
+CIVIMCP_SEED=delete cv scr <path-to>/civimcp/tests/seed/seed-test-data.php   # remove it again
+```
 
 ## Roadmap
 

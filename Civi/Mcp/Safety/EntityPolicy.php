@@ -55,6 +55,15 @@ final class EntityPolicy {
   }
 
   /**
+   * Forget the cached entity list (used by tests).
+   *
+   * @internal
+   */
+  public static function resetCache(): void {
+    self::$entities = NULL;
+  }
+
+  /**
    * Throw a clear error unless $entity is a known, allowed entity.
    */
   public static function assertReadable(string $entity): void {
