@@ -38,7 +38,10 @@ final class ToolsTest extends TestCase {
       $names[] = $tool::NAME;
     }
     $this->assertSame(array_unique($names), $names, 'Tool names must be unique');
-    $this->assertEqualsCanonicalizing(['site_info', 'system_check', 'list_entities', 'describe_entity', 'get', 'search_contacts'], $names);
+    $this->assertEqualsCanonicalizing([
+      'site_info', 'system_check', 'list_entities', 'describe_entity', 'get', 'search_contacts',
+      'list_extensions', 'scheduled_jobs', 'job_log', 'read_log', 'get_setting', 'list_saved_searches', 'run_saved_search',
+    ], $names);
   }
 
   public function testServerBuildsWithAllTools(): void {

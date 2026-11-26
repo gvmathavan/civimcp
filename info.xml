@@ -15,12 +15,12 @@
     <url desc="Licensing">https://opensource.org/license/mit</url>
   </urls>
   <releaseDate>2026-11-20</releaseDate>
-  <version>0.1.0-dev</version>
+  <version>0.2.0-dev</version>
   <develStage>alpha</develStage>
   <compatibility>
     <ver>6.3</ver>
   </compatibility>
-  <comments>v0.1: read-only tools over stdio. Run composer install before use.</comments>
+  <comments>v0.2: read-only tools over stdio, including diagnostics (extensions, scheduled jobs, logs, settings, SearchKit). Run composer install before use.</comments>
   <classloader>
     <psr0 prefix="CRM_" path="."/>
     <psr4 prefix="Civi\" path="Civi"/>

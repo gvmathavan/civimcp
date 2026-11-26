@@ -103,8 +103,6 @@ TXT;
 
     return $this->execute($args, function () use ($entity, $select, $where, $groupBy, $having, $orderBy, $limit, $offset): array {
       EntityPolicy::assertReadable($entity);
-      $limit = max(1, min(self::MAX_LIMIT, $limit));
-      $offset = max(0, $offset);
 
       foreach ($orderBy as $field => $direction) {
         if (!in_array(strtoupper((string) $direction), ['ASC', 'DESC'], TRUE)) {
@@ -117,62 +115,78 @@ TXT;
       }
 
       $params = [
+        'select' => $select ? array_values(array_unique($select)) : ['*'],
         'where' => $where,
         'groupBy' => $groupBy,
         'having' => $having,
         'orderBy' => $orderBy,
-        'limit' => $limit,
-        'offset' => $offset,
-        'checkPermissions' => TRUE,
       ];
-      // row_count gives the total matched; only database-backed entities support it.
-      $countable = in_array('DAOEntity', (array) (EntityPolicy::entities()[$entity]['type'] ?? []), TRUE);
-      $params['select'] = $select ? array_values(array_unique($select)) : ['*'];
-      if ($countable) {
-        $params['select'][] = 'row_count';
-      }
-
-      $result = civicrm_api4($entity, 'get', $params);
-
-      $rows = [];
-      $chars = 0;
-      $truncatedAt = NULL;
-      foreach ($result as $row) {
-        unset($row['row_count']);
-        $size = strlen((string) json_encode($row));
-        if ($rows && $chars + $size > self::MAX_CHARS) {
-          $truncatedAt = count($rows);
-          break;
-        }
-        $chars += $size;
-        $rows[] = $row;
-      }
-
-      try {
-        $total = $result->countMatched();
-      }
-      catch (\Throwable $e) {
-        $total = NULL;
-      }
-      $returned = count($rows);
-      $hasMore = $total !== NULL ? ($offset + $returned < $total) : ($returned >= $limit);
-
-      $out = [
-        'entity' => $entity,
-        'total_matched' => $total,
-        'returned' => $returned,
-        'offset' => $offset,
-        'has_more' => $hasMore,
-      ];
-      if ($hasMore) {
-        $out['next_offset'] = $offset + $returned;
-      }
-      if ($truncatedAt !== NULL) {
-        $out['note'] = sprintf('Stopped at %d rows to keep the answer small. Select fewer fields or page with offset.', $truncatedAt);
-      }
-      $out['values'] = $rows;
-      return $out;
+      return ['entity' => $entity] + self::runQuery($entity, $params, $limit, $offset);
     });
+  }
+
+  /**
+   * Run an APIv4 "get" as the current user and return a small, paginated,
+   * size-capped result. Shared by get and run_saved_search.
+   *
+   * @param array<string, mixed> $params APIv4 get params (select, where, join, groupBy, having, orderBy).
+   *
+   * @return array{total_matched: ?int, returned: int, offset: int, has_more: bool, next_offset?: int, note?: string, values: array}
+   */
+  public static function runQuery(string $entity, array $params, int $limit, int $offset): array {
+    EntityPolicy::assertReadable($entity);
+    $limit = max(1, min(self::MAX_LIMIT, $limit));
+    $offset = max(0, $offset);
+
+    $params['select'] = array_values((array) ($params['select'] ?? ['*'])) ?: ['*'];
+    // row_count gives the total matched; only database-backed entities support it.
+    if (in_array('DAOEntity', (array) (EntityPolicy::entities()[$entity]['type'] ?? []), TRUE) && !in_array('row_count', $params['select'], TRUE)) {
+      $params['select'][] = 'row_count';
+    }
+    // Always read-only, always as the current user.
+    $params['limit'] = $limit;
+    $params['offset'] = $offset;
+    $params['checkPermissions'] = TRUE;
+
+    $result = civicrm_api4($entity, 'get', $params);
+
+    $rows = [];
+    $chars = 0;
+    $truncatedAt = NULL;
+    foreach ($result as $row) {
+      unset($row['row_count']);
+      $size = strlen((string) json_encode($row));
+      if ($rows && $chars + $size > self::MAX_CHARS) {
+        $truncatedAt = count($rows);
+        break;
+      }
+      $chars += $size;
+      $rows[] = $row;
+    }
+
+    try {
+      $total = $result->countMatched();
+    }
+    catch (\Throwable $e) {
+      $total = NULL;
+    }
+    $returned = count($rows);
+    $hasMore = $total !== NULL ? ($offset + $returned < $total) : ($returned >= $limit);
+
+    $out = [
+      'total_matched' => $total,
+      'returned' => $returned,
+      'offset' => $offset,
+      'has_more' => $hasMore,
+    ];
+    if ($hasMore) {
+      $out['next_offset'] = $offset + $returned;
+    }
+    if ($truncatedAt !== NULL) {
+      $out['note'] = sprintf('Stopped at %d rows to keep the answer small. Select fewer fields or page with offset.', $truncatedAt);
+    }
+    $out['values'] = $rows;
+    return $out;
   }
 
 }

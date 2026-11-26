@@ -113,7 +113,9 @@ final class GetToolTest extends TestCase {
 
   public function testEveryCallIsAuditLogged(): void {
     (new Get())('Membership', ['id'], [['id', '=', 1]]);
-    $entry = end(\CiviStub::$log)[1];
+    [$message, $entry, $prefix] = end(\CiviStub::$log);
+    $this->assertSame('civimcp', $prefix, 'Audit log must go to its own civimcp file');
+    $this->assertStringStartsWith('civimcp tool call {', $message);
     $this->assertSame('get', $entry['tool']);
     $this->assertSame('ok', $entry['outcome']);
     $this->assertSame(2, $entry['contact_id']);

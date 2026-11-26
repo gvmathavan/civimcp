@@ -14,6 +14,7 @@ final class RedactorTest extends TestCase {
       ['credit_card_number'], ['bank_account_number'], ['signature'],
       ['API_KEY'], ['Password'],
       ['contact_id.api_key'], ['contact_id.employer_id.hash'],
+      ['smtpPassword'], ['recaptchaPrivateKey'], ['mapAPIKey'], ['geoAPIKey'], ['client_secret'], ['refresh_token'],
     ];
   }
 
@@ -38,6 +39,21 @@ final class RedactorTest extends TestCase {
     $this->assertSame(Redactor::REDACTED, $result['values'][0]['nested']['token']);
     $this->assertTrue($result['values'][0]['nested']['ok']);
     $this->assertSame(['password' => Redactor::REDACTED, 'name' => 'n'], $result['object']);
+  }
+
+  public function testRedactTextHidesEmailsKeysAndTokens(): void {
+    $text = 'login jane.doe@example.org api_key=abc123 password: hunter2 "site_key":"s3cr3t" /civicrm/x?cs=9f8e&id=5 Authorization: Bearer eyJhbGciOi.abc';
+    $out = Redactor::redactText($text);
+    foreach (['jane.doe@example.org', 'abc123', 'hunter2', 's3cr3t', '9f8e', 'eyJhbGciOi'] as $secret) {
+      $this->assertStringNotContainsString($secret, $out);
+    }
+    $this->assertStringContainsString('id=5', $out);
+    $this->assertStringContainsString('[email]', $out);
+  }
+
+  public function testRedactTextLeavesOrdinaryTextAlone(): void {
+    $text = 'Nov 26 10:00:00  [info] Processed 25 memberships for contact 42 in 3s';
+    $this->assertSame($text, Redactor::redactText($text));
   }
 
   public function testScalarsPassThrough(): void {

@@ -106,12 +106,20 @@ $r = run_server($server, $admin, $url, [
   17 => ['get', ['entity' => 'Setting']],
   18 => ['get', ['entity' => 'PaymentProcessor']],
   19 => ['get', ['entity' => 'Contact', 'limit' => 500]],
+  30 => ['list_extensions', []],
+  31 => ['scheduled_jobs', []],
+  32 => ['job_log', ['limit' => 3]],
+  33 => ['read_log', ['channel' => 'civimcp', 'lines' => 5]],
+  34 => ['get_setting', ['names' => ['environment']]],
+  35 => ['get_setting', ['search' => 'smtp']],
+  36 => ['list_saved_searches', ['limit' => 5]],
+  37 => ['read_log', ['channel' => '../../etc']],
 ]);
 
 check($r['_stdout_ok'], 'stdout carries only valid JSON-RPC', trim($r['_stderr']));
 check(isset($r[0]['result']['serverInfo']['name']) && $r[0]['result']['serverInfo']['name'] === 'civimcp', 'server starts and says hello', trim($r['_stderr']));
 $tools = array_column($r[1]['result']['tools'] ?? [], 'name');
-check(count($tools) === 6, '6 tools listed', implode(', ', $tools));
+check(count($tools) === 13, '13 tools listed', implode(', ', $tools));
 $allReadOnly = array_reduce($r[1]['result']['tools'] ?? [], fn($c, $t) => $c && ($t['annotations']['readOnlyHint'] ?? FALSE), TRUE);
 check($allReadOnly, 'every tool is marked read-only');
 
@@ -128,6 +136,29 @@ check(str_contains(tool_error($r, 17), 'not available through CiviMCP'), 'Settin
 check(str_contains(tool_error($r, 18), 'not available through CiviMCP'), 'PaymentProcessor entity is refused');
 check(tool_error($r, 19) !== '', 'limit above 100 is rejected');
 
+echo "\n  v0.2 diagnostics:\n";
+check(tool_ok($r, 30) && in_array('civimcp', array_column(data($r, 30)['extensions'] ?? [], 'key'), TRUE), 'list_extensions shows civimcp as enabled', tool_error($r, 30));
+check(tool_ok($r, 31) && isset(data($r, 31)['jobs']), 'scheduled_jobs lists jobs (' . (data($r, 31)['total'] ?? '?') . ' active, ' . (data($r, 31)['jobs_with_problems'] ?? '?') . ' flagged)', tool_error($r, 31));
+check(tool_ok($r, 32), 'job_log runs', tool_error($r, 32));
+$log = data($r, 33);
+check(tool_ok($r, 33) && !empty($log['exists'] ?? TRUE), 'read_log reads the civimcp audit log (' . ($log['returned'] ?? 0) . ' lines)', tool_error($r, 33));
+$leaks = preg_grep('/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/', $log['lines'] ?? []);
+check(!$leaks, 'read_log output contains no email addresses', implode(' | ', (array) $leaks));
+$env = array_column(data($r, 34)['settings'] ?? [], 'value', 'name')['environment'] ?? NULL;
+check(tool_ok($r, 34) && $env !== NULL, 'get_setting reads environment (' . json_encode($env) . ')', tool_error($r, 34));
+$smtp = json_encode(data($r, 35)['settings'] ?? []);
+check(tool_ok($r, 35) && !preg_match('/"smtpPassword":"(?!\[redacted\])[^"]+"/', $smtp), 'get_setting never shows an SMTP password', tool_error($r, 35));
+check(tool_ok($r, 36), 'list_saved_searches runs (' . (data($r, 36)['total_matched'] ?? '?') . ' saved searches)', tool_error($r, 36));
+check(tool_error($r, 37) !== '', 'read_log refuses path tricks');
+$first = data($r, 36)['searches'][0]['name'] ?? NULL;
+if ($first) {
+  $rs = run_server($server, $admin, $url, [40 => ['run_saved_search', ['name' => $first, 'limit' => 3]]]);
+  $ok = tool_ok($rs, 40);
+  $err = tool_error($rs, 40);
+  // Some core saved searches use entities CiviMCP blocks; a clear refusal is also correct.
+  check($ok || str_contains($err, 'not available through CiviMCP'), "run_saved_search \"$first\" runs (or is cleanly refused)", $err);
+}
+
 // ---------------------------------------------------------------------------
 echo "\nAs limited user \"$limited\":\n";
 $r = run_server($server, $limited, $url, [
@@ -135,6 +166,9 @@ $r = run_server($server, $limited, $url, [
   21 => ['get', ['entity' => 'Membership', 'select' => ['id'], 'limit' => 1]],
   22 => ['get', ['entity' => 'Contribution', 'limit' => 1]],
   23 => ['system_check', []],
+  24 => ['list_extensions', []],
+  25 => ['read_log', []],
+  26 => ['get_setting', ['names' => ['environment']]],
 ]);
 check(isset($r[0]['result']), 'server starts as the limited user', trim($r['_stderr']));
 $perms = data($r, 20)['current_user']['permissions'] ?? [];
@@ -142,6 +176,9 @@ check(($perms['access CiviCRM'] ?? FALSE) && !($perms['administer CiviCRM'] ?? T
 check(tool_ok($r, 21), 'can read memberships', tool_error($r, 21));
 check(str_starts_with(tool_error($r, 22), 'Permission denied'), 'cannot read contributions', tool_error($r, 22));
 check(str_starts_with(tool_error($r, 23), 'Permission denied'), 'cannot run system_check', tool_error($r, 23));
+check(str_starts_with(tool_error($r, 24), 'Permission denied'), 'cannot list extensions', tool_error($r, 24));
+check(str_starts_with(tool_error($r, 25), 'Permission denied'), 'cannot read log files', tool_error($r, 25));
+check(str_starts_with(tool_error($r, 26), 'Permission denied'), 'cannot read settings', tool_error($r, 26));
 
 // ---------------------------------------------------------------------------
 echo "\n" . ($failures ? "\033[31m$failures failed\033[0m, " : '') . "$passes passed\n\n";

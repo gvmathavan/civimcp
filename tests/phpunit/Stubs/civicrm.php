@@ -35,8 +35,23 @@ namespace {
     /** @var array<int, array{0: string, 1: array}> */
     public static array $log = [];
 
-    /** Last clauses passed to System::check() or Contact::get(). */
+    /** Last clauses passed to an Api4 query builder. */
     public static array $lastQuery = [];
+
+    /** @var array<string, array> Rows returned by Api4 builders, keyed by entity (Extension, Job, JobLog, SavedSearch, Setting, SettingFields). */
+    public static array $rows = [];
+
+    /** Path returned by CRM_Core_Error::generateLogFileName(). */
+    public static string $logFile = '';
+
+    /**
+     * Mimic CiviCRM: these entities need "administer CiviCRM".
+     */
+    public static function requireAdmin(string $what): void {
+      if (!in_array('administer CiviCRM', self::$permissions, TRUE)) {
+        throw new \Civi\API\Exception\UnauthorizedException("Authorization failed: CiviCRM APIv4 ($what)");
+      }
+    }
 
     public static function reset(): void {
       self::$settings = ['environment' => 'Development', 'enable_components' => ['CiviMember', 'CiviEvent']];
@@ -54,6 +69,8 @@ namespace {
       self::$apiHandler = NULL;
       self::$log = [];
       self::$lastQuery = [];
+      self::$rows = [];
+      self::$logFile = '';
       \Civi\Mcp\Safety\EntityPolicy::resetCache();
     }
 
@@ -63,6 +80,10 @@ namespace {
 
     public function __construct(array $rows, private ?int $matched = NULL) {
       parent::__construct($rows);
+    }
+
+    public function first(): ?array {
+      return $this->count() ? $this->getArrayCopy()[array_key_first($this->getArrayCopy())] : NULL;
     }
 
     public function countMatched(): int {
@@ -137,6 +158,23 @@ namespace {
 
   }
 
+  final class CRM_Core_Error {
+
+    public static function generateLogFileName($prefix): string {
+      return CiviStub::$logFile;
+    }
+
+    /**
+     * Records [message, decoded JSON payload, prefix] in CiviStub::$log.
+     */
+    public static function debug_log_message($message, $out = FALSE, $prefix = '', $priority = NULL): string {
+      $json = strpos($message, '{');
+      CiviStub::$log[] = [$message, $json !== FALSE ? json_decode(substr($message, $json), TRUE) : NULL, $prefix];
+      return $message;
+    }
+
+  }
+
   final class CRM_Utils_System {
 
     public static function version(): string {
@@ -202,6 +240,7 @@ namespace Civi\Api4 {
     }
 
     public function addOrderBy(...$args): static {
+      \CiviStub::$lastQuery['orderBy'][] = $args;
       return $this;
     }
 
@@ -244,6 +283,79 @@ namespace Civi\Api4 {
         }
         return array_values(array_filter(\CiviStub::$systemChecks, fn($m) => $m['severity_id'] >= $min));
       });
+    }
+
+  }
+
+  /**
+   * Builder returning CiviStub::$rows[$key], after an optional permission check.
+   */
+  function stub_rows(string $key, bool $admin): StubQuery {
+    return new StubQuery(function () use ($key, $admin) {
+      if ($admin) {
+        \CiviStub::requireAdmin($key . '::get');
+      }
+      $rows = \CiviStub::$rows[$key] ?? [];
+      return new \StubResult($rows, count($rows));
+    });
+  }
+
+  class Extension {
+
+    public static function get($checkPermissions = TRUE): StubQuery {
+      return stub_rows('Extension', TRUE);
+    }
+
+  }
+
+  class Job {
+
+    public static function get($checkPermissions = TRUE): StubQuery {
+      return stub_rows('Job', TRUE);
+    }
+
+  }
+
+  class JobLog {
+
+    public static function get($checkPermissions = TRUE): StubQuery {
+      return stub_rows('JobLog', TRUE);
+    }
+
+  }
+
+  class SavedSearch {
+
+    public static function get($checkPermissions = TRUE): StubQuery {
+      return new StubQuery(function () {
+        $rows = \CiviStub::$rows['SavedSearch'] ?? [];
+        foreach (\CiviStub::$lastQuery['where'] as [$field, $op, $value]) {
+          if ($field === 'name' && $op === '=') {
+            $rows = array_values(array_filter($rows, fn($r) => $r['name'] === $value));
+          }
+        }
+        return new \StubResult($rows, count($rows));
+      });
+    }
+
+  }
+
+  class Setting {
+
+    public static function get($checkPermissions = TRUE): StubQuery {
+      return new StubQuery(function () {
+        \CiviStub::requireAdmin('Setting::get');
+        $values = \CiviStub::$rows['Setting'] ?? [];
+        $rows = [];
+        foreach (\CiviStub::$lastQuery['select'] as $name) {
+          $rows[] = ['name' => $name, 'value' => $values[$name] ?? NULL];
+        }
+        return new \StubResult($rows);
+      });
+    }
+
+    public static function getFields($checkPermissions = TRUE): StubQuery {
+      return stub_rows('SettingFields', FALSE);
     }
 
   }

@@ -3,11 +3,11 @@
 CiviMCP is a CiviCRM extension that lets Claude and other [Model Context Protocol](https://modelcontextprotocol.io) clients work with a CiviCRM site safely.
 
 - **Runs as a real CiviCRM user.** Every tool call goes through `civicrm_api4()` with permission checks, so the AI can only see and do what that user can.
-- **Read-only first.** v0.1 has no write tools.
+- **Read-only first.** No write tools yet.
 - **Labelled.** Every result says which site and environment (Production / Staging / Development) it came from.
 - **Redacted and logged.** API keys, hashes and checksums are stripped from results; every call is written to the `civimcp` log channel in ConfigAndLog.
 
-Status: **v0.1 in development** (WordPress, stdio transport).
+Status: **v0.2 in development** (WordPress, stdio transport). Released: [v0.1.0](https://github.com/gvmathavan/civimcp/releases/tag/v0.1.0).
 
 ## Tools
 
@@ -19,6 +19,15 @@ Status: **v0.1 in development** (WordPress, stdio transport).
 | `describe_entity` | Fields of an entity, incl. custom fields, labels, links and option values |
 | `get` | Read records of any allowed entity with APIv4 `get` (select, where, orderBy, limit ≤ 100, offset), plus totals with groupBy/having and COUNT/SUM/AVG/MIN/MAX |
 | `search_contacts` | Find contacts by part of name, email, phone, or ID |
+| `list_extensions` | Installed extensions with version and status (enabled, disabled, missing files) |
+| `scheduled_jobs` | Scheduled jobs: what each runs, how often, last run, next due; flags never-run, overdue and unfinished jobs |
+| `job_log` | Recent job runs and their output, filterable by job, text or date |
+| `read_log` | The end of a CiviCRM log file (main or a channel such as `civimcp`), filterable by text |
+| `get_setting` | Settings by exact name or keyword, with passwords and keys always redacted |
+| `list_saved_searches` | The site's SearchKit saved searches |
+| `run_saved_search` | Run a saved search, read-only, with the 100-row cap and permission checks always applied |
+
+The diagnostic tools (extensions, jobs, logs, settings, system check) need the `administer CiviCRM` permission. `read_log` reads files directly, so it checks that permission itself, and it redacts email addresses, keys, passwords and checksums from every line.
 
 Entities that can hold credentials (Setting, PaymentProcessor, OAuth tokens, MailSettings and others) are never readable through these tools.
 
